@@ -31,10 +31,11 @@ from playwright.sync_api import sync_playwright
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-# 侧栏「更多」：hover 展开下拉
+# 侧栏「更多 灵感」合并项（5.5.6）：hover 展开下拉，精确「更多」已不存在
+# 注意：该元素是 <button> 而非 div，selector 不能限 div
 JS_HOVER_MORE = """() => {
-  const e=[...document.querySelectorAll('span,div,button')]
-    .find(x=>(x.innerText||'').trim()==='更多');
+  const e=[...document.querySelectorAll('[class*=conversation-list-tab-button]')]
+    .find(x=>{const t=(x.innerText||'').replace(/\\s+/g,' ').trim(); return t.includes('更多') && t.includes('灵感');});
   if(!e) return null;
   const r=e.getBoundingClientRect();
   return {x:Math.round(r.x+r.width/2), y:Math.round(r.y+r.height/2)};
@@ -64,12 +65,13 @@ JS_TONG = """() => {
   const r=e.getBoundingClientRect();
   return {x:Math.round(r.x+r.width/2), y:Math.round(r.y+r.height/2)};
 }"""
-# 发送键（最右的 _large_ 图标）
+# 发送键（5.5.6 class=cr-send-button / cr-input-toolbar__send；旧版 _large_）
 JS_SEND = """() => {
-  const c=[...document.querySelectorAll('div[class*="_large_"]')]
+  const sel='div[class*=cr-send-button],div[class*=cr-input-toolbar__send],div[class*=_large_hg7y0_],div[class*=_large_]';
+  const c=[...document.querySelectorAll(sel)]
     .map(e=>{const r=e.getBoundingClientRect();
       return {x:Math.round(r.x+r.width/2), y:Math.round(r.y+r.height/2), w:Math.round(r.width)};})
-    .filter(o=>o.w>20 && o.y>0);
+  .filter(o=>o.w>20 && o.y>0);
   c.sort((a,b)=>b.x-a.x);
   return c[0]||null;
 }"""

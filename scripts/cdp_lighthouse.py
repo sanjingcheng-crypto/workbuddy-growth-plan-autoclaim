@@ -15,7 +15,9 @@ JS_TAB = """() => { const e=[...document.querySelectorAll('button,[role=tab]')].
 JS_SUB = """(name) => { const e=[...document.querySelectorAll('button,[role=tab],div[class*=tab]')].find(x=>(x.innerText||'').trim()===name); if(!e) return 'nf'; e.click(); return 'ok'; }"""
 JS_CARD = """(name) => { const main=[...document.querySelectorAll('div[class*=ec-card-main]')]; const pool = main.length ? main : [...document.querySelectorAll('div[class*=card]')]; const c = pool.find(x => (x.innerText||'').includes(name)); if(!c) return 'nf'; c.click(); return 'ok'; }"""
 JS_SUMMON = """() => { const e=[...document.querySelectorAll('button')].find(x=>(x.innerText||'').includes('召唤')); if(!e) return 'nf'; e.click(); return 'ok:'+(e.innerText||'').trim(); }"""
-JS_SEND = """() => { const c=[...document.querySelectorAll('div[class*="_large_hg7y0_"]')].map(e=>{const r=e.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2),w:Math.round(r.width)};}).filter(o=>o.w>20&&o.y>0); c.sort((a,b)=>b.x-a.x); return c[0]||null; }"""
+JS_SEND = """() => {
+  const sel='div[class*=cr-send-button],div[class*=cr-input-toolbar__send],div[class*=_large_hg7y0_],div[class*=_large_]';
+  const c=[...document.querySelectorAll(sel)].map(e=>{const r=e.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2),w:Math.round(r.width)};}).filter(o=>o.w>20&&o.y>0); c.sort((a,b)=>b.x-a.x); return c[0]||null; }"""
 # 优先点「连接」(且位于 Lighthouse 卡片内)；否则点「连接腾讯云账号」之类
 JS_CONNECT = """() => {
   const btns=[...document.querySelectorAll('button')].filter(x=>(x.innerText||'').trim()==='连接');

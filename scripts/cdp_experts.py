@@ -57,14 +57,28 @@ JS_CARD = """(name) => {
   const pool = main.length ? main : [...document.querySelectorAll('div[class*=card]')];
   const c = pool.find(x => (x.innerText||'').includes(name));
   if(!c) return 'nf'; c.click(); return 'ok'; }"""
+# 列出可见卡片（标题+中心坐标），用于 --any 按序召唤（不依赖专家名）
+# 5.5.6 专家库按账号重构（兰进城=教育类/羊羊=通用类）且列表动态刷新，
+# 硬编码名字常匹配不到（nf），故改用「可见卡片索引」兜底。
+JS_CARDS = """() => {
+  const main=[...document.querySelectorAll('div[class*=ec-card-main]')];
+  const pool = main.length ? main : [...document.querySelectorAll('div[class*=card]')];
+  return pool.map(e=>{const r=e.getBoundingClientRect();return {
+    t:(e.innerText||'').replace(/\\s+/g,' ').trim().slice(0,60),
+    x:Math.round(r.x+r.width/2), y:Math.round(r.y+r.height/2),
+    w:Math.round(r.width), h:Math.round(r.height)};})
+    .filter(o=>o.w>60 && o.h>40 && o.y>80);
+}"""
 # 点详情里的「召唤 XX」按钮
 JS_SUMMON = """() => { const e=[...document.querySelectorAll('button')]
   .find(x=>(x.innerText||'').includes('召唤')); if(!e) return 'nf'; e.click();
   return 'ok:'+(e.innerText||'').trim(); }"""
-# 取最右的发送键（_large_hg7y0_ 同名下有两个：附件 x≈900、发送 x≈1158）
-JS_SEND = """() => { const c=[...document.querySelectorAll('div[class*="_large_hg7y0_"]')]
-  .map(e=>{const r=e.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2),w:Math.round(r.width)};})
-  .filter(o=>o.w>20&&o.y>0); c.sort((a,b)=>b.x-a.x); return c[0]||null; }"""
+# 取最右的发送键（5.5.6 class=cr-send-button；旧版 _large_hg7y0_）
+JS_SEND = """() => {
+  const sel='div[class*=cr-send-button],div[class*=cr-input-toolbar__send],div[class*=_large_hg7y0_],div[class*=_large_]';
+  const c=[...document.querySelectorAll(sel)]
+    .map(e=>{const r=e.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2),w:Math.round(r.width)};})
+    .filter(o=>o.w>20&&o.y>0); c.sort((a,b)=>b.x-a.x); return c[0]||null; }"""
 # 任务数侧栏
 JS_TASKS = "() => (document.body.innerText.match(/\\u4efb\\u52a1\\s*\\((\\d+)\\)/) || [])[1] || '?'"
 # 连接器授权框：有「连接」就点（尝试满足 Expert_lighthouse），否则点「暂不」关掉
@@ -101,6 +115,13 @@ def summon_one(pg, name, handle_dialog):
     pg.wait_for_timeout(2200)
     pg.evaluate(JS_SUB, "专家")
     pg.wait_for_timeout(2200)
+    # 清空可能的搜索过滤（5.5.6 专家库重构，残留搜索词会让卡片 nf）
+    # 注意：仅在确实存在搜索框时才清；羊羊为干净会话，skip 以免误点其他 input
+    # try:
+    #     pg.locator('input[placeholder*="搜索"]').first.click(timeout=3000)
+    #     pg.keyboard.press("Control+a"); pg.keyboard.press("Delete"); pg.keyboard.press("Enter")
+    # except Exception: pass
+    # pg.wait_for_timeout(800)
     # 滚动加载虚拟列表（多次）
     for _ in range(6):
         pg.evaluate(JS_SCROLL)
@@ -123,27 +144,85 @@ def summon_one(pg, name, handle_dialog):
     return True, "sent=%s dialog=%s tasks %s->%s" % (ok, d, before, pg.evaluate(JS_TASKS))
 
 
+def open_experts_panel(pg):
+    """回到专家面板并返回可见卡片列表。"""
+    pg.evaluate(JS_TAB)
+    pg.wait_for_timeout(2200)
+    pg.evaluate(JS_SUB, "专家")
+    pg.wait_for_timeout(2500)
+    for _ in range(4):
+        pg.evaluate(JS_SCROLL)
+        pg.wait_for_timeout(600)
+    return pg.evaluate(JS_CARDS)
+
+
+def summon_any(pg, count, handle_dialog):
+    """按可见卡片顺序召唤 N 个专家（不依赖专家名）。
+
+    每次召唤后重新进入面板取卡片（列表会动态刷新），用 used 去重避免重复。
+    """
+    used, done = set(), 0
+    for _ in range(count * 4):
+        if done >= count:
+            break
+        cards = open_experts_panel(pg)
+        cand = [c for c in cards if c["t"] and c["t"] not in used]
+        if not cand:
+            print("   (无更多未召唤的可见卡片)")
+            break
+        c = cand[0]
+        used.add(c["t"])
+        before = pg.evaluate(JS_TASKS)
+        pg.mouse.click(c["x"], c["y"])
+        pg.wait_for_timeout(3000)
+        r2 = pg.evaluate(JS_SUMMON)
+        if r2 == "nf":
+            print("   FAIL 召唤键未找到：%s" % c["t"])
+            continue
+        pg.wait_for_timeout(4200)
+        ok = send_msg(pg)
+        if handle_dialog:
+            pg.wait_for_timeout(1500)
+            pg.evaluate(JS_DIALOG, "连接")
+            pg.wait_for_timeout(2500)
+        after = pg.evaluate(JS_TASKS)
+        print("   %s %s | 召唤=%s 发送=%s 任务数 %s->%s"
+              % ("OK" if ok else "FAIL", c["t"], r2, ok, before, after))
+        if ok:
+            done += 1
+        time.sleep(3)
+    return done
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--names", help="逗号分隔的专家名（全名优先）")
+    ap.add_argument("--any", type=int, default=0,
+                    help="按可见卡片顺序召唤 N 个专家（不依赖名字，推荐跨账号使用）")
     ap.add_argument("--no-dialog", action="store_true", help="不尝试点连接器授权框")
     ap.add_argument("--port", default=9222, type=int)
     args = ap.parse_args()
 
-    names = [n.strip() for n in (args.names or "").split(",") if n.strip()] or DEFAULT_POOL
-
     with sync_playwright() as p:
         b = p.chromium.connect_over_cdp("http://127.0.0.1:%d" % args.port)
         pg = b.contexts[0].pages[0]
-        ok_n = 0
-        for name in names:
-            print("== %s ==" % name)
-            good, msg = summon_one(pg, name, not args.no_dialog)
-            print("   %s  %s" % ("OK" if good else "FAIL", msg))
-            if good:
-                ok_n += 1
-            time.sleep(3)
-        print("\n召唤成功 %d/%d。expert_5 计数滞后，稍后(小时级)由定时任务兜底计入并领取。" % (ok_n, len(names)))
+        if args.any:
+            print("== 按可见卡片顺序召唤 %d 个专家 ==" % args.any)
+            ok_n = summon_any(pg, args.any, not args.no_dialog)
+            total = args.any
+        else:
+            names = [n.strip() for n in (args.names or "").split(",") if n.strip()] or DEFAULT_POOL
+            ok_n = 0
+            for name in names:
+                print("== %s ==" % name)
+                good, msg = summon_one(pg, name, not args.no_dialog)
+                print("   %s  %s" % ("OK" if good else "FAIL", msg))
+                if good:
+                    ok_n += 1
+                time.sleep(3)
+            total = len(names)
+        print("\n召唤成功 %d/%d。expert_5 计数滞后，稍后(小时级)由定时任务兜底计入并领取。"
+              % (ok_n, total))
 
 
 if __name__ == "__main__":

@@ -1,13 +1,12 @@
 ---
 name: workbuddy-growth-plan-autoclaim
-version: 6.3.0
+version: 6.4.0
 description: WorkBuddy 成长计划（成长中心）全自动收割——多账号签到/接任务/领奖/派猫猫旅行；通过本机 ACP 完成对话类任务
   （含黑猫彩蛋夜间 GLM-5.2 对话）；通过 CDP 接管桌面客户端 UI 自动完成
-  create_canvas(+300)/template_5(+100)/expert_5 召唤专家/playbook_prompt 灵感做同款(+100)/Expert_lighthouse 轻量云连接(+100)。
-  自包含、可移植（换账号/换电脑一键 setup）。
+  create_canvas(+300)/template_5(+100)/expert_5 召唤专家/playbook_prompt
+  灵感做同款(+100)/Expert_lighthouse 轻量云连接(+100)。 自包含、可移植（换账号/换电脑一键 setup）。
 type: automation
 agent_created: true
-disable: false
 ---
 
 # WorkBuddy 成长计划 · 全自动收割（自包含可移植包）
@@ -37,7 +36,7 @@ disable: false
 | `acp_autofarm.py` | 对话类任务（Model_chat_GLM5.2 / chat_5） | ✅（本机 ACP 端口） |
 | `black_cat.py` | 黑猫彩蛋：夜间 GLM-5.2 对话推进（23:00-8:00 守卫） | ✅（本机 ACP 端口） |
 | `cdp_autofarm.py` | UI 任务（create_canvas +300 / template_5 +100） | ✅（需 9222 调试端口） |
-| `cdp_experts.py` | expert_5 召唤专家（虚拟列表/详情召唤/计数滞后兜底） | ✅（需 9222） |
+| `cdp_experts.py` | expert_5 召唤专家（**推荐 `--any N` 按可见卡片召唤**，跨账号通用） | ✅（需 9222） |
 | `cdp_expert_dialog.py` | 检查专家对话回复 + 搜索框精确召唤 | ✅（需 9222） |
 | `cdp_playbook.py` | **playbook_prompt（+100）**：hover 更多→灵感→点卡片→做同款→发送 | ✅（需 9222） |
 | `cdp_lighthouse.py` | **Expert_lighthouse（+100）**：搜「轻量云」→召唤腾讯轻量云专家→发操作请求→点「连接」 | ✅（需 9222） |
@@ -180,13 +179,24 @@ token 剩余 < 1 小时的账号会被跳过（不支持自动 refresh）。
 ## 能力边界（全路径探查结论）
 - ✅ 可自动：签到、接任务、领奖、派猫/收猫、抽奖（有次数时）、**对话类任务（ACP）**、
   **`create_canvas`（CDP，+300）**、**`template_5`（CDP，+100）**、
-  **`playbook_prompt`（CDP，+100）**、**`Expert_lighthouse`（CDP，+100）**
-- 🔶 可推进但计数滞后：`expert_5`（召唤 5 位**不同**专家）—— 流程已验证：
-  侧栏「专家·技能·连接器」→ 子 tab「专家」→ **点专家卡片（按名字匹配）→ 进详情点「召唤 XX」→ 发消息**。
+  **`playbook_prompt`（CDP，+100，⚠️ 按账号不一定计数，见下）**
+  （`Expert_lighthouse` 已于 5.5.6 失效，见下）
+- 🔶 `expert_5`（召唤 5 位**不同**专家）—— 流程：侧栏「专家·技能·连接器」→ 子 tab「专家」→
+  **点专家卡片 → 进详情点「召唤 XX」→ 发消息**。
   ⚠️ **关键 DOM 契约（v6.2.0 修正）**：专家**卡片本身没有「召唤」按钮**，召唤键只在详情里；
-  且专家列表是**虚拟滚动**，直接按文本等会超时，须先滚动加载再按卡片全名精确匹配。
-  `cdp_experts.py` 已重写支持 `--names` 指定专家、`--no-dialog` 跳过连接器框、自动滚动。
-  计数滞后（召唤后任务数 +1，但 progress 仍 2/5，需专家真实响应 + 小时级延迟），靠每小时定时任务兜底计入并领取。
+  且专家列表是**虚拟滚动**，直接按文本等会超时，须先滚动加载。
+  ⚠️ **v6.4.0 重大修正（2026-09-14 实测）**：
+  - **`--names` 按名字匹配已不可靠**：5.5.6 专家库**按账号重构且列表动态刷新**
+    （兰进城=「企鹅教师助手」教育类；羊羊=通用类：采购库存/心理咨询/AI落地/个人IP…），
+    硬编码 `DEFAULT_POOL` 名字常匹配不到 → 直接 `nf`。
+  - **"小时级滞后"是误判**：羊羊 2/5 历经 1h40m 纹丝不动。dump 侧栏对话列表后发现
+    ——之前那几次召唤**根本没创建出对话**，是召唤失败，不是滞后。
+  - ✅ **改用 `--any N`**：按**可见卡片索引顺序**召唤 N 个专家，**不依赖专家名**，跨账号通用。
+    每次召唤后重进面板重取卡片（列表会刷新），内部用 used 集合去重。
+    ```bash
+    python cdp_experts.py --any 3 --no-dialog    # 召唤 3 个可见专家
+    ```
+  - 校验方式：跑完看输出里的 `任务数 A->B` 是否递增；递增才说明对话真的建了。
 - ❌ Web 版无这些模块：`skills/templates/canvas/playbook/experts/automation/library` **全部 404**，
   Web 仅有 首页 / 成长中心 / 只读 chat
 - ❌ 桌面 app.asar 加密；但 `app.asar.unpacked/cli/dist/codebuddy.js`（21.6MB）未加密，仅含 CLI 端点
@@ -232,8 +242,8 @@ SK="$HOME/.workbuddy/skills/workbuddy-growth-plan-autoclaim/scripts"
 "$PY" "$SK/cdp_autofarm.py" --templates 4    # 自动使用 4 个不同模板（template_5）
 "$PY" "$SK/cdp_autofarm.py" --explore out.json --canvas --templates 3 --wait 150
                                              # 一键：等端口+探查+画布+模板
-"$PY" "$SK/cdp_experts.py" --names "吴八哥,文爆爆,教学设计总顾问-企鹅教师助手"
-                                             # 召唤指定专家（expert_5）；不传则用脚本内 DEFAULT_POOL
+"$PY" "$SK/cdp_experts.py" --any 3 --no-dialog
+                                             # 召唤 3 个可见专家（expert_5）；跨账号通用，勿用 --names（名字按账号变化）
 "$PY" "$SK/cdp_playbook.py"                  # playbook_prompt（+100）：灵感做同款（可 --index N）
 "$PY" "$SK/cdp_lighthouse.py"                # Expert_lighthouse（+100）：搜轻量云→召唤→点连接
 "$PY" "$SK/cdp_appearance.py" --set dark     # 切深色（--set light 切回）；用于重测 Hp_Appearance
@@ -267,15 +277,24 @@ SK="$HOME/.workbuddy/skills/workbuddy-growth-plan-autoclaim/scripts"
 **你什么都不用做**。脚本每小时自动：黑猫（仅夜间）→ 补做对话类任务 → 领奖 → 派猫/收猫。
 CDP 类（画布/模板/召唤专家/**灵感做同款**/**轻量云连接**）：双击 `run_autofarm.bat` 一次（画布+模板），
 再依次跑 `cdp_playbook.py` / `cdp_lighthouse.py` / `cdp_experts.py`，即可完成当前账号的全部可做 UI 任务；
-`expert_5` 召唤后计数滞后，定时任务每小时兜底计入并领取。
+`expert_5` 跑完先看输出里 `任务数 A->B` 是否递增（递增=对话真创建了），再由定时任务兜底领取。
 **8 个"无自动化"任务的实际结论（2026-09-14 CDP 实测，详见 `AUTOCOMPLETE.md` 第八节）**：
 - ✅ **新增可自动化（2 个）**：
-  - `playbook_prompt`：hover「更多」→「灵感」→点卡片→「做同款」→发送（脚本 `cdp_playbook.py`，已实测领取 +100c）
-  - `Expert_lighthouse`：**搜索框过滤「轻量云」**→点 `腾讯轻量云专家`→召唤→发「查我的轻量云实例列表」→弹「是否连接 Lighthouse 运维?」→点「**连接**」→连接器计数触发 0/1→1/1（脚本 `cdp_lighthouse.py`，已实测领取 +100c）
-    ⚠️ 注意：专家列表是几百张卡片虚拟滚动，**必须用搜索框过滤**，否则标题 `.includes` 会误命中别的专家
+  - `playbook_prompt`：hover「更多」→「灵感」→点卡片→「做同款」→发送（脚本 `cdp_playbook.py`，兰进城实测领取 +100c）
+    ⚠️ **按账号表现不一致（2026-09-14 实测）**：羊羊上对话**确实已创建且助手完成**
+    （"已处理 10m36s"+含构建完成），但服务端 `progress` 始终 `{current:0,target:1}`，
+    POST claim 返回 **HTTP 400 `task not completed`**。→ 非必成，跑完务必用 `--list` 复核，别默认算成功。
+- ❌ `Expert_lighthouse`：**5.5.6 起永久不可自动**（原路线失效）
+  - 根因：5.5.6 **专家库重构**，「腾讯轻量云专家」**已下架**，全部专家换成教育/通用类。
+    搜索「轻量云 / 腾讯云 / Lighthouse」均返回 **0 个专家**，原 `cdp_lighthouse.py` 无目标可点。
+  - （5.2.6 老路线记录：搜索框过滤「轻量云」→点 `腾讯轻量云专家`→召唤→发「查我的轻量云实例列表」
+    →弹「是否连接 Lighthouse 运维?」→点「连接」→计数 0/1→1/1。仅对旧版本/该专家仍存在的账号有效）
 - ⚠️ 定义未确认：`Expert_team_use_3`（"专家团"无明确可召唤目标）
 - ❌ **实测不可自动化（事件未埋点）**：`Library_read`（已穷举 **6 条路径**：乐享面板单/双击打开、iframe 内滚动、对话引用 KB、本地 .md 内置阅读器、`@` 提及文件、OAuth 授权本身 —— 全部不计数）、
   `Hp_Appearance`（用户菜单 `button.user-menu-theme-option` 浅色/深色**切换真的生效**但 harvest 仍 0/1；设置页无「外观/主题」项。详见 `cdp_appearance.py`）
-- ❌ 当前版本无入口：`Buddy_App` / `Buddy_App_QQ`（首页无「发现应用」入口，深链不支持）
+- ❌ 当前版本无入口（5.5.6 最终确认）：`Buddy_App` / `Buddy_App_QQ`
+  - 实测：点顶部「发现应用」(`wb-button` x≈158,y≈42) → 进应用市场 → 点「企鹅教师助手」/
+    「构建打工人小账本」等应用，harvest 仍 `0/1`。需桌面深链 `workbuddy://home?openBuddySwitcher`，
+    网页/CDP 无入口。（某账号显示 claimed 属历史遗留/手动完成，非 CDP 攻克）
 - ❌ 绝不自动：`Expert_Philanthropy`（真实捐款，涉及真实支付）
 - `black_cat` 已可脚本化（只需客户端在夜间开着并触发定时任务）。
