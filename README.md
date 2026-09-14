@@ -4,7 +4,8 @@ WorkBuddy 成长中心（成长计划）积分全自动收割 Skill。
 
 - **多账号**：签到 / 接任务 / 领奖 / 派猫猫旅行（纯 HTTP，无需客户端）
 - **对话类任务**（Model_chat_GLM5.2 / chat_5 等）：通过本机 ACP 自动完成
-- **UI 类任务**（create_canvas +300 / template_5 +100 / expert_5 召唤专家）：通过 CDP 接管桌面客户端
+- **UI 类任务**（create_canvas +300 / template_5 +100 / expert_5 召唤专家 /
+  playbook_prompt 灵感做同款 +100 / Expert_lighthouse 轻量云连接 +100）：通过 CDP 接管桌面客户端
 - **黑猫彩蛋**（black_cat）：连续 3 晚 23:00–8:00 用 GLM-5.2 对话，脚本化自动推进
 - 自包含、可移植：**换账号 / 换电脑都能直接用**
 
@@ -42,7 +43,9 @@ UI 类（画布/模板/召唤专家）：双击 `run_autofarm.bat`（需客户�
 ## 限制
 
 - ACP / CDP 类任务只对客户端**当前登录账号**生效；HTTP 部分（签到/领奖/派猫）多账号全覆盖。
-- 仍依赖人工的项：`Expert_Philanthropy`（真实捐款）、`Expert_lighthouse`（需真实使用连接器）。
+- 仍依赖人工的项：`Expert_Philanthropy`（真实捐款，绝不自动）。
+- 当前版本（5.2.6）实测**不可自动**（事件未埋点/无入口，需 5.5.3+）：`Library_read`、`Hp_Appearance`、
+  `Buddy_App`、`Buddy_App_QQ`；`Expert_team_use_3` 定义未确认。详见 `AUTOCOMPLETE.md` §8。
 
 ## 目录结构
 
@@ -58,7 +61,13 @@ scripts/
   acp_autofarm.py     ACP 对话类任务
   cdp_autofarm.py     CDP 画布/模板
   cdp_experts.py      CDP 召唤专家（expert_5）
+  cdp_playbook.py     CDP「灵感·做同款」（playbook_prompt，2026-09-14 新增）
+  cdp_lighthouse.py   CDP「轻量云专家连接」（Expert_lighthouse，2026-09-14 新增）
+  cdp_appearance.py   CDP 切浅色/深色主题（重测 Hp_Appearance 用，2026-09-14 新增）
+  cdp_library_read.py CDP 打开知识库/本地文档（重测 Library_read 用，2026-09-14 新增）
   cdp_expert_dialog.py 专家对话检查
+  confirm_pending.py  清理「待确认」悬停会话（模板/灵感跑完后用）
+  do_tpl_pairs.py     跨场景模板补齐（template_5 收尾）
   black_cat.py        黑猫彩蛋夜间推进
   claim_api.py        底层签到/领奖 API
   growth_claim.py     单账号成长领奖

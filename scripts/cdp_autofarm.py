@@ -133,7 +133,15 @@ def set_scene(pg, name):
     for t in pg.evaluate(JS_STATE)["tabs"]:
         if t["t"] == name and t["active"]:
             return True
-    pg.get_by_text(name, exact=True).first.click(timeout=6000)
+    # 用 pill 选择器精确点击，避免 get_by_text 命中隐藏/祖先元素的歧义（脏态下常见）
+    ok = pg.evaluate("""(name) => {
+        const els = [...document.querySelectorAll('[class*=wb-scene-tabs__pill]')];
+        const hit = els.find(e => (e.innerText||'').trim() === name);
+        if (!hit) return false;
+        hit.scrollIntoView(); hit.click(); return true;
+    }""", name)
+    if not ok:
+        pg.get_by_text(name, exact=True).first.click(timeout=6000)  # 兜底
     pg.wait_for_timeout(2200)
     return True
 

@@ -50,9 +50,12 @@ JS_SCROLL = """() => { for (const el of document.querySelectorAll('div')) {
   if (el.scrollHeight > el.clientHeight + 80) try { el.scrollTop = el.scrollHeight; } catch(e){} }
   window.scrollTo(0, 1e7); return 'ok'; }"""
 # 点名字匹配的卡片（卡片 innerText 含 name 即可，不要求卡片带召唤按钮）
+# 5.2.6 实测：专家卡片根为 div.ec-card-main；旧选择器 div[class*=card] 会先命中
+# ec-card-head/ec-card-body 等子元素，点它不触发卡片点击 → 优先 ec-card-main，回退旧选择器。
 JS_CARD = """(name) => {
-  const cards=[...document.querySelectorAll('div[class*=card]')];
-  const c = cards.find(x => (x.innerText||'').includes(name));
+  const main=[...document.querySelectorAll('div[class*=ec-card-main]')];
+  const pool = main.length ? main : [...document.querySelectorAll('div[class*=card]')];
+  const c = pool.find(x => (x.innerText||'').includes(name));
   if(!c) return 'nf'; c.click(); return 'ok'; }"""
 # 点详情里的「召唤 XX」按钮
 JS_SUMMON = """() => { const e=[...document.querySelectorAll('button')]

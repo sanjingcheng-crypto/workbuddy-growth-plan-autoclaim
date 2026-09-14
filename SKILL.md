@@ -1,9 +1,10 @@
 ---
 name: workbuddy-growth-plan-autoclaim
-version: 6.2.0
+version: 6.3.0
 description: WorkBuddy 成长计划（成长中心）全自动收割——多账号签到/接任务/领奖/派猫猫旅行；通过本机 ACP 完成对话类任务
   （含黑猫彩蛋夜间 GLM-5.2 对话）；通过 CDP 接管桌面客户端 UI 自动完成
-  create_canvas(+300)/template_5(+100)/expert_5 召唤专家。自包含、可移植（换账号/换电脑一键 setup）。
+  create_canvas(+300)/template_5(+100)/expert_5 召唤专家/playbook_prompt 灵感做同款(+100)/Expert_lighthouse 轻量云连接(+100)。
+  自包含、可移植（换账号/换电脑一键 setup）。
 type: automation
 agent_created: true
 disable: false
@@ -38,6 +39,11 @@ disable: false
 | `cdp_autofarm.py` | UI 任务（create_canvas +300 / template_5 +100） | ✅（需 9222 调试端口） |
 | `cdp_experts.py` | expert_5 召唤专家（虚拟列表/详情召唤/计数滞后兜底） | ✅（需 9222） |
 | `cdp_expert_dialog.py` | 检查专家对话回复 + 搜索框精确召唤 | ✅（需 9222） |
+| `cdp_playbook.py` | **playbook_prompt（+100）**：hover 更多→灵感→点卡片→做同款→发送 | ✅（需 9222） |
+| `cdp_lighthouse.py` | **Expert_lighthouse（+100）**：搜「轻量云」→召唤腾讯轻量云专家→发操作请求→点「连接」 | ✅（需 9222） |
+| `cdp_appearance.py` | 切浅色/深色主题（`--set dark\|light`），供升级后重测 `Hp_Appearance` | ✅（需 9222） |
+| `confirm_pending.py` | 清理「待确认」悬停会话（模板/灵感跑完后用） | ✅（需 9222） |
+| `do_tpl_pairs.py` | 跨场景模板补齐（template_5 收尾） | ✅（需 9222） |
 | `growth_claim.py` | 单账号成长任务领奖（简单版） | ❌ |
 | `claim_api.py` | 每日签到 API（单账号，底层） | ❌ |
 | `wb_cdp.py` | CDP 诊断/抓包/点击（开发用） | ✅（需 9222） |
@@ -54,7 +60,12 @@ disable: false
 3. **CDP 接管客户端 UI**（`cdp_autofarm.py`）★★
    - 客户端带 `--remote-debugging-port=9222` 启动后，用 Playwright 连 CDP 直接操作其 renderer DOM
    - **实测可完成 `create_canvas`（+300）**：新建任务 → 切「设计创意」tab → 输入 prompt → 点发送
+     ⚠️ 首次创建画布会弹 **Ardot（腾讯设计）授权面板**：需先勾 `.ardot-auth-agreement-checkbox` 协议框，
+     再点「**注册并授权**」（用 WorkBuddy 账号一键注册）→ 授权后重触发画布生成即计入。
+     每个账号只需授权一次；授权面板无「确认」按钮时，就是尚未绑定 Ardot。
    - **实测可完成 `template_5`（+100）**：点模板 pill → **必须再补一句文本** → 点发送（5 个不同模板）
+   - **实测可完成 `playbook_prompt`（+100）**：hover 侧栏「更多」→「灵感」→点卡片→「做同款」→发送（`cdp_playbook.py`）
+   - **实测可完成 `Expert_lighthouse`（+100）**：搜索框过滤「轻量云」→召唤`腾讯轻量云专家`→发「查我的轻量云实例列表」→点「连接」（`cdp_lighthouse.py`）
    - 这是唯一能完成「需客户端功能 UI」任务的路径
 
 ##为什么必须是多账号（血泪教训）
@@ -140,10 +151,11 @@ token 剩余 < 1 小时的账号会被跳过（不支持自动 refresh）。
   脚本入口：`cdp_autofarm.py --model Hy3`（`set_model()` 已实现并实测）。
   模型选择是**持久的**（切一次后续新任务都沿用）。
 - **自动确认授权弹框**（`--confirm 连接|暂不`）：某些专家召唤后会弹「是否连接 XX？」授权框。
-  脚本会尝试点「连接」。但实测 `Expert_lighthouse`（+100）**不是点一下「连接」就能满足**——
-  它要求**真正使用过该连接器**（连接器列表里没有名为 Lighthouse/灯塔/轻量服务器的独立项，
-  且三位专家召唤后均未弹框）。此项属「连完还要实际用一次」的硬任务，纯自动化搞不定，需手动在
-  连接器里实际调用一次相关服务才计。脚本保留尝试逻辑，但不保证完成。
+  脚本会尝试点「连接」。**`Expert_lighthouse`（+100）已实测可全自动打通**（2026-09-14 修正，见下）：
+  正确链路 = 搜索框过滤「轻量云」→ 召唤`腾讯轻量云专家` → 对话发「查我的轻量云实例列表」→
+  专家弹「是否连接 Lighthouse 运维?」→ 点「**连接**」→ 连接器计数触发 `0/1 → 1/1`。
+  计数触发点就是**「连接连接器」这个动作本身**（账号已绑腾讯云时连接即计数）。
+  ⚠️ 旧结论（"纯自动化搞不定"）已作废——那是搜索匹配误命中别的专家导致的假失败。
 - **黑猫彩蛋 black_cat（v6.2.0 新增自动推进）**：规则——连续 **3 天**在 **23:00–8:00** 用
   **GLM-5.2** 发起对话解锁（0 积分，纯彩蛋）。实测用 ACP 新建会话 + `set_model glm-5.2` + 发一条消息，
   服务端把 black_cat 从 `0/3` 推进到 `1/3`，证明 ACP 的 GLM-5.2 对话计入彩蛋判定。
@@ -167,7 +179,8 @@ token 剩余 < 1 小时的账号会被跳过（不支持自动 refresh）。
 
 ## 能力边界（全路径探查结论）
 - ✅ 可自动：签到、接任务、领奖、派猫/收猫、抽奖（有次数时）、**对话类任务（ACP）**、
-  **`create_canvas`（CDP，+300）**、**`template_5`（CDP，+100）**
+  **`create_canvas`（CDP，+300）**、**`template_5`（CDP，+100）**、
+  **`playbook_prompt`（CDP，+100）**、**`Expert_lighthouse`（CDP，+100）**
 - 🔶 可推进但计数滞后：`expert_5`（召唤 5 位**不同**专家）—— 流程已验证：
   侧栏「专家·技能·连接器」→ 子 tab「专家」→ **点专家卡片（按名字匹配）→ 进详情点「召唤 XX」→ 发消息**。
   ⚠️ **关键 DOM 契约（v6.2.0 修正）**：专家**卡片本身没有「召唤」按钮**，召唤键只在详情里；
@@ -177,6 +190,25 @@ token 剩余 < 1 小时的账号会被跳过（不支持自动 refresh）。
 - ❌ Web 版无这些模块：`skills/templates/canvas/playbook/experts/automation/library` **全部 404**，
   Web 仅有 首页 / 成长中心 / 只读 chat
 - ❌ 桌面 app.asar 加密；但 `app.asar.unpacked/cli/dist/codebuddy.js`（21.6MB）未加密，仅含 CLI 端点
+
+## 客户端版本与任务解锁（2026-09-14）
+部分成长任务依赖**较新客户端版本**才有对应功能/埋点：
+- `Hp_Appearance`（和平精英主题）：需 **5.5.3+**。5.2.6 用户菜单虽有浅色/深色切换、**切换真的生效**
+  （`html.class` light→dark、body bg 变），但服务端**无事件埋点** → harvest 恒 `0/1`。
+- `Library_read`：5.2.6 已穷举 **6 条路径**（乐享面板预览/iframe 滚动/对话引用 KB/本地 .md 阅读器/`@`提及/OAuth 本身）
+  全不计数，疑同样需更高版本才有"读文档"埋点。
+
+**取最新安装包直链（可复用）**——官网 SPA 的下载链接是客户端动态从官方接口拉的（历史版本页只归档到 5.1.x，不含最新）：
+```bash
+GET https://www.workbuddy.cn/v2/update?platform=workbuddy-win32-x64-user
+# → {"url":"https://download.codebuddy.cn/workbuddy/saas/win32-x64-user/WorkBuddy-win32-x64-user-<ver>-<hash>.exe", ...}
+# Mac: platform=workbuddy-darwin-arm64-user / -x64-user
+curl -L -o WorkBuddy-<ver>.exe "<url>"      # 约 507 MB；只下载、不安装
+```
+
+> ⚠️ **铁律**：绝不主动 `taskkill`/重启用户的 WorkBuddy。安装由**用户本人双击 exe**完成；
+> 需要 CDP 9222 时也由用户双击 `start_workbuddy_debug.bat`，脚本只轮询端口，不代拉进程。
+> 升级到 5.5.3+ 后，用 `cdp_appearance.py`（切主题）+ `cdp_library_read.py`（开文档）重测这两个任务是否解锁。
 
 ## 用法
 ```bash
@@ -202,6 +234,10 @@ SK="$HOME/.workbuddy/skills/workbuddy-growth-plan-autoclaim/scripts"
                                              # 一键：等端口+探查+画布+模板
 "$PY" "$SK/cdp_experts.py" --names "吴八哥,文爆爆,教学设计总顾问-企鹅教师助手"
                                              # 召唤指定专家（expert_5）；不传则用脚本内 DEFAULT_POOL
+"$PY" "$SK/cdp_playbook.py"                  # playbook_prompt（+100）：灵感做同款（可 --index N）
+"$PY" "$SK/cdp_lighthouse.py"                # Expert_lighthouse（+100）：搜轻量云→召唤→点连接
+"$PY" "$SK/cdp_appearance.py" --set dark     # 切深色（--set light 切回）；用于重测 Hp_Appearance
+"$PY" "$SK/confirm_pending.py"               # 清理「待确认」悬停会话
 "$PY" "$SK/wb_cdp.py" --list                 # CDP 诊断
 ```
 
@@ -214,8 +250,10 @@ SK="$HOME/.workbuddy/skills/workbuddy-growth-plan-autoclaim/scripts"
 ## 换账号说明
 - **HTTP 部分**（签到/领奖/派猫）：**无需任何操作**，脚本读切换器存档里所有账号
 - **ACP 部分**（含 black_cat）：只对「客户端当前登录的账号」生效 —— **你切到哪个账号，下一个定时周期它自动补做**
-- **CDP 部分**（画布/模板/召唤专家）：同上，只对当前登录账号生效
+- **CDP 部分**（画布/模板/召唤专家/灵感做同款/轻量云连接）：同上，只对当前登录账号生效
 - 新增账号：在账号切换器里登录一次，脚本自动发现
+- **切换顺序建议**：每个账号 → 双击 `start_workbuddy_debug.bat`(开 9222) → 跑 `cdp_autofarm.py`(画布+模板)
+  → `cdp_playbook.py`(灵感) → `cdp_lighthouse.py`(轻量云) → `cdp_experts.py`(召唤专家) → `harvest.py`(领奖)
 
 ## 定时任务
 - `WorkBuddy 多账号积分自动收割（签到+接任务+领奖+派猫+ACP自动完成+黑猫）`（`automation-1789213157881`）
@@ -227,7 +265,17 @@ SK="$HOME/.workbuddy/skills/workbuddy-growth-plan-autoclaim/scripts"
 
 ## 推荐工作模式
 **你什么都不用做**。脚本每小时自动：黑猫（仅夜间）→ 补做对话类任务 → 领奖 → 派猫/收猫。
-CDP 类（画布/模板/召唤专家）：双击 `run_autofarm.bat` 一次，自动完成当前账号的全部可做任务；
+CDP 类（画布/模板/召唤专家/**灵感做同款**/**轻量云连接**）：双击 `run_autofarm.bat` 一次（画布+模板），
+再依次跑 `cdp_playbook.py` / `cdp_lighthouse.py` / `cdp_experts.py`，即可完成当前账号的全部可做 UI 任务；
 `expert_5` 召唤后计数滞后，定时任务每小时兜底计入并领取。
-仍需人工介入的项：`Expert_Philanthropy`（真实捐款）、`Expert_lighthouse`（需真实使用连接器）、
-`black_cat` 已可脚本化（只需客户端在夜间开着并触发定时任务）。
+**8 个"无自动化"任务的实际结论（2026-09-14 CDP 实测，详见 `AUTOCOMPLETE.md` 第八节）**：
+- ✅ **新增可自动化（2 个）**：
+  - `playbook_prompt`：hover「更多」→「灵感」→点卡片→「做同款」→发送（脚本 `cdp_playbook.py`，已实测领取 +100c）
+  - `Expert_lighthouse`：**搜索框过滤「轻量云」**→点 `腾讯轻量云专家`→召唤→发「查我的轻量云实例列表」→弹「是否连接 Lighthouse 运维?」→点「**连接**」→连接器计数触发 0/1→1/1（脚本 `cdp_lighthouse.py`，已实测领取 +100c）
+    ⚠️ 注意：专家列表是几百张卡片虚拟滚动，**必须用搜索框过滤**，否则标题 `.includes` 会误命中别的专家
+- ⚠️ 定义未确认：`Expert_team_use_3`（"专家团"无明确可召唤目标）
+- ❌ **实测不可自动化（事件未埋点）**：`Library_read`（已穷举 **6 条路径**：乐享面板单/双击打开、iframe 内滚动、对话引用 KB、本地 .md 内置阅读器、`@` 提及文件、OAuth 授权本身 —— 全部不计数）、
+  `Hp_Appearance`（用户菜单 `button.user-menu-theme-option` 浅色/深色**切换真的生效**但 harvest 仍 0/1；设置页无「外观/主题」项。详见 `cdp_appearance.py`）
+- ❌ 当前版本无入口：`Buddy_App` / `Buddy_App_QQ`（首页无「发现应用」入口，深链不支持）
+- ❌ 绝不自动：`Expert_Philanthropy`（真实捐款，涉及真实支付）
+- `black_cat` 已可脚本化（只需客户端在夜间开着并触发定时任务）。
